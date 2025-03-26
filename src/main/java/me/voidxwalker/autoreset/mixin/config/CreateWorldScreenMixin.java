@@ -6,7 +6,7 @@ import me.contaria.speedrunapi.util.TextUtil;
 import me.voidxwalker.autoreset.AttemptTracker;
 import me.voidxwalker.autoreset.Atum;
 import me.voidxwalker.autoreset.AtumCreateWorldScreen;
-import me.voidxwalker.autoreset.api.seedprovider.SeedProvider;
+import me.voidxwalker.autoreset.api.seedprovider.AtumWaitingScreen;
 import me.voidxwalker.autoreset.interfaces.IMoreOptionsDialog;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
@@ -40,8 +40,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -83,11 +85,17 @@ public abstract class CreateWorldScreenMixin extends Screen {
     @Unique
     private AbstractButtonWidget demoModeButton;
 
+    @Unique
+    private CompletableFuture<String> seedFuture = null;
+
     @Shadow
     protected abstract void updateSaveFolderName();
 
     @Shadow
     protected abstract void createLevel();
+
+    @Shadow
+    public abstract void removed();
 
     protected CreateWorldScreenMixin(Text title) {
         super(title);
@@ -293,18 +301,55 @@ public abstract class CreateWorldScreenMixin extends Screen {
         if (!Atum.isRunning()) {
             return Objects.requireNonNull(Atum.config.seed);
         }
-        SeedProvider seedProvider = Atum.getSeedProvider();
-        Optional<String> seed = seedProvider.getSeed();
-        if (seed.isPresent()) {
-            return seed.get();
-        }
-        if (MinecraftClient.getInstance().isOnThread()) {
-            MinecraftClient.getInstance().openScreen(Atum.getSeedProvider().getWaitingScreen());
+        try {
+            if (seedFuture == null) {
+                seedFuture = Atum.getSeedProvider().requestSeed();
+            }
+            if (seedFuture.isDone()) {
+                if (seedFuture.isCancelled()) {
+                    Atum.LOGGER.warn("The seed provider has cancelled this seed.");
+                    Atum.stopRunning();
+                    return null;
+                }
+                return seedFuture.get();
+            }
+            if (MinecraftClient.getInstance().isOnThread()) {
+                openWaitingScreen();
+                return null;
+            }
+            return seedFuture.join();
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        } catch (CancellationException e) {
+            Atum.LOGGER.warn("The seed provider has cancelled this seed.", e);
+            Atum.stopRunning();
+            return null;
+        } catch (ExecutionException e) {
+            Atum.LOGGER.error("Failed to get seed from the seed provider!", e);
+            Atum.stopRunning();
             return null;
         }
-        // Note: If a mod ever makes AtumCreateWorldScreens in parallel, the next two lines would cause a race condition.
-        seedProvider.waitForSeed();
-        return seedProvider.getSeed().orElseThrow(() -> new IllegalStateException("No seed found after waiting!"));
+    }
+
+    @Unique
+    private void openWaitingScreen() {
+        AtumWaitingScreen waitingScreen = Atum.getSeedProvider().getWaitingScreen(seedFuture);
+        MinecraftClient.getInstance().openScreen(waitingScreen);
+        seedFuture.handle((s, ex) -> {
+            assert client != null;
+            client.execute(() -> {
+                if (client.currentScreen != waitingScreen) return;
+                if (s != null) {
+                    MinecraftClient.getInstance().openScreen(this);
+                } else if (ex != null) {
+                    Atum.stopRunning();
+                    waitingScreen.onFail(ex);
+                } else {
+                    throw new IllegalStateException();
+                }
+            });
+            return s;
+        });
     }
 
     @Unique

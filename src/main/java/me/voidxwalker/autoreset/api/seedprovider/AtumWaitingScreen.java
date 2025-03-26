@@ -1,32 +1,21 @@
 package me.voidxwalker.autoreset.api.seedprovider;
 
-import me.voidxwalker.autoreset.Atum;
-import me.voidxwalker.autoreset.AtumCreateWorldScreen;
-import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.text.Text;
 
-public abstract class AtumWaitingScreen extends Screen {
-    private boolean decided = false;
+import java.util.concurrent.CompletableFuture;
 
-    protected AtumWaitingScreen(Text title) {
+public abstract class AtumWaitingScreen extends Screen {
+    private final CompletableFuture<String> seedFuture;
+
+    protected AtumWaitingScreen(Text title, CompletableFuture<String> seedFuture) {
         super(title);
+        this.seedFuture = seedFuture;
     }
 
     @SuppressWarnings("unused")
     protected final void cancelWorldCreation() {
         this.onClose();
-    }
-
-    @SuppressWarnings("unused")
-    protected final void continueWorldCreation() {
-        this.onDecided();
-        MinecraftClient.getInstance().openScreen(new AtumCreateWorldScreen(null));
-    }
-
-    private void onDecided() {
-        Atum.ensureState(!this.decided, "AtumWaitingScreen continue method(s) called more than once!");
-        this.decided = true;
     }
 
     @Override
@@ -36,17 +25,14 @@ public abstract class AtumWaitingScreen extends Screen {
 
     @Override
     public final void onClose() {
-        this.onDecided();
-        Atum.stopRunning();
+        this.seedFuture.cancel(true);
         super.onClose();
     }
 
-    @Override
-    public final void removed() {
-        Atum.ensureState(this.decided, "Improper closing of AtumWaitingScreen. Methods continueWorldCreation or cancelWorldCreation should be used.");
-        onRemoved();
-    }
-
-    protected void onRemoved() {
+    /**
+     * Executed when the seed future has an exception.
+     */
+    @SuppressWarnings("unused")
+    public void onFail(Throwable ex) {
     }
 }
