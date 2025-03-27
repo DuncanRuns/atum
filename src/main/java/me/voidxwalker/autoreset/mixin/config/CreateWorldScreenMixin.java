@@ -313,7 +313,8 @@ public abstract class CreateWorldScreenMixin extends Screen {
                 }
                 return seedFuture.get();
             }
-            if (MinecraftClient.getInstance().isOnThread()) {
+            assert client != null;
+            if (client.isOnThread()) {
                 openWaitingScreen();
                 return null;
             }
@@ -334,13 +335,14 @@ public abstract class CreateWorldScreenMixin extends Screen {
     @Unique
     private void openWaitingScreen() {
         AtumWaitingScreen waitingScreen = Atum.getSeedProvider().getWaitingScreen(seedFuture);
-        MinecraftClient.getInstance().openScreen(waitingScreen);
+        assert client != null;
+        client.openScreen(waitingScreen);
         seedFuture.handle((s, ex) -> {
             assert client != null;
             client.execute(() -> {
                 if (client.currentScreen != waitingScreen) return;
                 if (s != null) {
-                    MinecraftClient.getInstance().openScreen(this);
+                    client.openScreen(this);
                 } else if (ex != null) {
                     Atum.stopRunning();
                     waitingScreen.onFail(ex);
