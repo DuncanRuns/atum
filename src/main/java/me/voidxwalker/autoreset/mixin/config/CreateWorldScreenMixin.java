@@ -7,6 +7,7 @@ import me.voidxwalker.autoreset.AttemptTracker;
 import me.voidxwalker.autoreset.Atum;
 import me.voidxwalker.autoreset.AtumCreateWorldScreen;
 import me.voidxwalker.autoreset.api.seedprovider.AtumWaitingScreen;
+import me.voidxwalker.autoreset.interfaces.ICreateWorldScreen;
 import me.voidxwalker.autoreset.interfaces.IMoreOptionsDialog;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
@@ -48,7 +49,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Mixin(CreateWorldScreen.class)
-public abstract class CreateWorldScreenMixin extends Screen {
+public abstract class CreateWorldScreenMixin extends Screen implements ICreateWorldScreen {
     @Shadow
     @Final
     private Screen parent;
@@ -96,6 +97,9 @@ public abstract class CreateWorldScreenMixin extends Screen {
 
     @Shadow
     public abstract void removed();
+
+    @Shadow
+    public abstract void render(MatrixStack matrices, int mouseX, int mouseY, float delta);
 
     protected CreateWorldScreenMixin(Text title) {
         super(title);
@@ -315,7 +319,7 @@ public abstract class CreateWorldScreenMixin extends Screen {
             }
             assert client != null;
             if (client.isOnThread()) {
-                openWaitingScreen();
+                atum$openWaitingScreen(() -> client.openScreen(this));
                 return null;
             }
             return seedFuture.join();
@@ -332,8 +336,13 @@ public abstract class CreateWorldScreenMixin extends Screen {
         }
     }
 
-    @Unique
-    private void openWaitingScreen() {
+    @Override
+    public boolean atum$isSeedResolved() {
+        return this.seedFuture != null && this.seedFuture.isDone();
+    }
+
+    @Override
+    public void atum$openWaitingScreen(Runnable onSuccess) {
         AtumWaitingScreen waitingScreen = Atum.getSeedProvider().getWaitingScreen(seedFuture);
         assert client != null;
         client.openScreen(waitingScreen);
@@ -343,6 +352,7 @@ public abstract class CreateWorldScreenMixin extends Screen {
                 if (client.currentScreen != waitingScreen) return;
                 if (s != null) {
                     client.openScreen(this);
+                    onSuccess.run();
                 } else if (ex != null) {
                     Atum.stopRunning();
                     waitingScreen.onFail(ex);
