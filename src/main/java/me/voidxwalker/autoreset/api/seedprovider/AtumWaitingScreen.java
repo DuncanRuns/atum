@@ -3,14 +3,12 @@ package me.voidxwalker.autoreset.api.seedprovider;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.text.Text;
 
-import java.util.concurrent.CompletableFuture;
-
 public abstract class AtumWaitingScreen extends Screen {
-    private final CompletableFuture<String> seedFuture;
+    private final Runnable cancelFunction;
 
-    protected AtumWaitingScreen(Text title, CompletableFuture<String> seedFuture) {
+    protected AtumWaitingScreen(Text title, Runnable cancelFunction) {
         super(title);
-        this.seedFuture = seedFuture;
+        this.cancelFunction = cancelFunction;
     }
 
     @SuppressWarnings("unused")
@@ -25,14 +23,7 @@ public abstract class AtumWaitingScreen extends Screen {
 
     @Override
     public final void onClose() {
-        this.seedFuture.cancel(true);
+        this.cancelFunction.run();
         super.onClose();
-    }
-
-    /**
-     * Executed when the seed future has an exception.
-     */
-    @SuppressWarnings("unused")
-    public void onFail(Throwable ex) {
     }
 }

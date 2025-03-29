@@ -7,7 +7,6 @@ import me.voidxwalker.autoreset.AttemptTracker;
 import me.voidxwalker.autoreset.Atum;
 import me.voidxwalker.autoreset.AtumCreateWorldScreen;
 import me.voidxwalker.autoreset.api.seedprovider.AtumWaitingScreen;
-import me.voidxwalker.autoreset.interfaces.ICreateWorldScreen;
 import me.voidxwalker.autoreset.interfaces.IMoreOptionsDialog;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
@@ -49,7 +48,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Mixin(CreateWorldScreen.class)
-public abstract class CreateWorldScreenMixin extends Screen implements ICreateWorldScreen {
+public abstract class CreateWorldScreenMixin extends Screen {
     @Shadow
     @Final
     private Screen parent;
@@ -85,9 +84,6 @@ public abstract class CreateWorldScreenMixin extends Screen implements ICreateWo
 
     @Unique
     private AbstractButtonWidget demoModeButton;
-
-    @Unique
-    private CompletableFuture<String> seedFuture = null;
 
     @Shadow
     protected abstract void updateSaveFolderName();
@@ -306,6 +302,8 @@ public abstract class CreateWorldScreenMixin extends Screen implements ICreateWo
             return Objects.requireNonNull(Atum.config.seed);
         }
         try {
+            CompletableFuture<String> seedFuture;
+            seedFuture = Atum.currentSeedFuture;
             if (seedFuture == null) {
                 seedFuture = Atum.getSeedProvider().requestSeed();
             }
@@ -318,50 +316,45 @@ public abstract class CreateWorldScreenMixin extends Screen implements ICreateWo
                 return seedFuture.get();
             }
             assert client != null;
-            if (client.isOnThread()) {
-                atum$openWaitingScreen(() -> client.openScreen(this));
+            Atum.currentSeedFuture = seedFuture;
+            if (client.isOnThread() && openWaitingScreen(seedFuture)) {
                 return null;
             }
-            return seedFuture.join();
+            String out = seedFuture.join();
+            Atum.currentSeedFuture = null;
+            return out;
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         } catch (CancellationException e) {
             Atum.LOGGER.warn("The seed provider has cancelled this seed.", e);
             Atum.stopRunning();
+            Atum.getSeedProvider().onFail(e);
             return null;
         } catch (ExecutionException e) {
             Atum.LOGGER.error("Failed to get seed from the seed provider!", e);
             Atum.stopRunning();
+            Atum.getSeedProvider().onFail(e);
             return null;
         }
     }
 
-    @Override
-    public boolean atum$isSeedResolved() {
-        return this.seedFuture != null && this.seedFuture.isDone();
-    }
-
-    @Override
-    public void atum$openWaitingScreen(Runnable onSuccess) {
-        AtumWaitingScreen waitingScreen = Atum.getSeedProvider().getWaitingScreen(seedFuture);
+    @Unique
+    public boolean openWaitingScreen(CompletableFuture<String> seedFuture) {
+        AtumWaitingScreen waitingScreen = Atum.getSeedProvider().getWaitingScreen(() -> seedFuture.cancel(true)).orElse(null);
+        if (waitingScreen == null) {
+            return false;
+        }
         assert client != null;
         client.openScreen(waitingScreen);
         seedFuture.handle((s, ex) -> {
             assert client != null;
             client.execute(() -> {
                 if (client.currentScreen != waitingScreen) return;
-                if (s != null) {
-                    client.openScreen(this);
-                    onSuccess.run();
-                } else if (ex != null) {
-                    Atum.stopRunning();
-                    waitingScreen.onFail(ex);
-                } else {
-                    throw new IllegalStateException();
-                }
+                client.openScreen(this);
             });
             return s;
         });
+        return true;
     }
 
     @Unique
