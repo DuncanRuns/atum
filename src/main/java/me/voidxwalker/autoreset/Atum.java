@@ -112,48 +112,5 @@ public class Atum implements ClientModInitializer {
                 GLFW.GLFW_KEY_F6,
                 "key.categories.atum"
         ));
-
-        Object LOCK = new Object();
-
-        setSeedProvider(new SeedProvider() {
-            long nextAvailable = 0;
-
-            @Override
-            public CompletableFuture<String> requestSeed() {
-                CompletableFuture<String> seedFuture = new CompletableFuture<>();
-                new Thread(() -> {
-                    synchronized (LOCK) {
-                        long current = System.currentTimeMillis();
-                        if (current > nextAvailable) {
-                            nextAvailable = current + 5000;
-                            seedFuture.complete("aaa " + new Random().nextLong());
-                        }
-                        try {
-                            Thread.sleep(5000);
-                            seedFuture.complete("aaa " + new Random().nextLong());
-                        } catch (Exception e) {
-                            seedFuture.completeExceptionally(e);
-                        }
-                    }
-                }).start();
-                return seedFuture;
-            }
-
-            @Override
-            public Optional<AtumWaitingScreen> getWaitingScreen(Runnable cancelFunction) {
-                return Optional.of(new AtumWaitingScreen(Text.of("aaaaaa"), cancelFunction) {
-                    @Override
-                    public void render(MatrixStack matrices, int mouseX, int mouseY, float delta) {
-                        renderBackground(matrices);
-                        drawCenteredText(matrices, textRenderer, title, width / 2, height / 2 - textRenderer.fontHeight, Formatting.WHITE.getColorValue());
-                    }
-
-                    @Override
-                    public boolean shouldCloseOnEsc() {
-                        return true;
-                    }
-                });
-            }
-        });
     }
 }
