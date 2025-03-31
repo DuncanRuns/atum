@@ -330,6 +330,7 @@ public abstract class CreateWorldScreenMixin extends Screen {
             Atum.stopRunning();
             assert client != null;
             client.openScreen(null);
+            Atum.seedFutureFailCounter++;
             Atum.getSeedProvider().onFail(e);
             return null;
         } catch (Exception e) {
@@ -337,6 +338,7 @@ public abstract class CreateWorldScreenMixin extends Screen {
             Atum.LOGGER.error("Failed to get seed from the seed provider!", e);
             Atum.stopRunning();
             onClose();
+            Atum.seedFutureFailCounter++;
             Atum.getSeedProvider().onFail(e);
             return null;
         }

@@ -29,6 +29,7 @@ public class Atum implements ClientModInitializer {
     private static SeedProvider seedProvider = DEFAULT_SEED_PROVIDER;
 
     public static CompletableFuture<String> currentSeedFuture = null;
+    public static long seedFutureFailCounter = 0;
 
     public static void createNewWorld() {
         running = true;
