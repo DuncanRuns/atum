@@ -43,7 +43,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -96,6 +95,9 @@ public abstract class CreateWorldScreenMixin extends Screen {
 
     @Shadow
     public abstract void render(MatrixStack matrices, int mouseX, int mouseY, float delta);
+
+    @Shadow
+    public abstract void onClose();
 
     protected CreateWorldScreenMixin(Text title) {
         super(title);
@@ -308,11 +310,7 @@ public abstract class CreateWorldScreenMixin extends Screen {
                 seedFuture = Atum.getSeedProvider().requestSeed();
             }
             if (seedFuture.isDone()) {
-                if (seedFuture.isCancelled()) {
-                    Atum.LOGGER.warn("The seed provider has cancelled this seed.");
-                    Atum.stopRunning();
-                    return null;
-                }
+                Atum.currentSeedFuture = null;
                 return seedFuture.get();
             }
             assert client != null;
@@ -324,15 +322,21 @@ public abstract class CreateWorldScreenMixin extends Screen {
             Atum.currentSeedFuture = null;
             return out;
         } catch (InterruptedException e) {
+            Atum.currentSeedFuture = null;
             throw new RuntimeException(e);
         } catch (CancellationException e) {
-            Atum.LOGGER.warn("The seed provider has cancelled this seed.", e);
+            Atum.currentSeedFuture = null;
+            Atum.LOGGER.warn("The seed has been cancelled.");
             Atum.stopRunning();
+            assert client != null;
+            client.openScreen(null);
             Atum.getSeedProvider().onFail(e);
             return null;
-        } catch (ExecutionException e) {
+        } catch (Exception e) {
+            Atum.currentSeedFuture = null;
             Atum.LOGGER.error("Failed to get seed from the seed provider!", e);
             Atum.stopRunning();
+            onClose();
             Atum.getSeedProvider().onFail(e);
             return null;
         }
@@ -340,20 +344,15 @@ public abstract class CreateWorldScreenMixin extends Screen {
 
     @Unique
     public boolean openWaitingScreen(CompletableFuture<String> seedFuture) {
-        AtumWaitingScreen waitingScreen = Atum.getSeedProvider().getWaitingScreen(() -> seedFuture.cancel(true)).orElse(null);
+        assert client != null;
+        AtumWaitingScreen waitingScreen = Atum.getSeedProvider().getWaitingScreen(() -> seedFuture.cancel(true), () -> {
+            assert client != null;
+            if (seedFuture.isDone()) client.openScreen(this);
+        }).orElse(null);
         if (waitingScreen == null) {
             return false;
         }
-        assert client != null;
         client.openScreen(waitingScreen);
-        seedFuture.handle((s, ex) -> {
-            assert client != null;
-            client.execute(() -> {
-                if (client.currentScreen != waitingScreen) return;
-                client.openScreen(this);
-            });
-            return s;
-        });
         return true;
     }
 

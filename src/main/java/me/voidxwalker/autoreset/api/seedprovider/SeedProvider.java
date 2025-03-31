@@ -22,12 +22,12 @@ public interface SeedProvider {
      * The waiting screen will automatically close when the seed future is completed, but implementations may also cancel with cancelWorldCreation.
      * The implemented waiting screen can also override shouldCloseOnEsc(), returning true to allow cancelling with the 'escape' key.
      */
-    default Optional<AtumWaitingScreen> getWaitingScreen(Runnable cancelFunction) {
+    default Optional<AtumWaitingScreen> getWaitingScreen(Runnable cancelFunction, Runnable onTick) {
         return Optional.empty();
     }
 
     /**
-     * Runs when an exception occurs while resolving the seed future.
+     * Runs when an exception or cancellation occurs while resolving the seed future.
      */
     default void onFail(Throwable ex){
     }

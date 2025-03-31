@@ -3,12 +3,17 @@ package me.voidxwalker.autoreset.api.seedprovider;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.text.Text;
 
+/**
+ * A waiting screen intended to wait for a seed to become playable with the ability to cancel playing a seed.
+ */
 public abstract class AtumWaitingScreen extends Screen {
-    private final Runnable cancelFunction;
+    private final Runnable onCancel;
+    private final Runnable onTick;
 
-    protected AtumWaitingScreen(Text title, Runnable cancelFunction) {
+    protected AtumWaitingScreen(Text title, Runnable onCancel, Runnable onTick) {
         super(title);
-        this.cancelFunction = cancelFunction;
+        this.onCancel = onCancel;
+        this.onTick = onTick;
     }
 
     @SuppressWarnings("unused")
@@ -23,7 +28,14 @@ public abstract class AtumWaitingScreen extends Screen {
 
     @Override
     public final void onClose() {
-        this.cancelFunction.run();
-        super.onClose();
+        this.onCancel.run();
+    }
+
+    /**
+     * If an implementation overrides tick, it needs to run super.tick().
+     */
+    @Override
+    public void tick() {
+        onTick.run();
     }
 }
