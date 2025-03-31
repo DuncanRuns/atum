@@ -300,6 +300,7 @@ public abstract class CreateWorldScreenMixin extends Screen {
 
     @Unique
     private @Nullable String getSeed() {
+        assert client != null;
         if (!Atum.isRunning()) {
             return Objects.requireNonNull(Atum.config.seed);
         }
@@ -313,7 +314,6 @@ public abstract class CreateWorldScreenMixin extends Screen {
                 Atum.currentSeedFuture = null;
                 return seedFuture.get();
             }
-            assert client != null;
             Atum.currentSeedFuture = seedFuture;
             if (client.isOnThread() && openWaitingScreen(seedFuture)) {
                 return null;
@@ -325,23 +325,28 @@ public abstract class CreateWorldScreenMixin extends Screen {
             Atum.currentSeedFuture = null;
             throw new RuntimeException(e);
         } catch (CancellationException e) {
-            Atum.currentSeedFuture = null;
-            Atum.LOGGER.warn("The seed has been cancelled.");
-            Atum.stopRunning();
-            assert client != null;
-            client.openScreen(null);
-            Atum.seedFutureFailCounter++;
-            Atum.getSeedProvider().onFail(e);
+            client.execute(() -> {
+                Atum.LOGGER.warn("The seed has been cancelled.");
+                onSeedFutureFail(e);
+            });
             return null;
         } catch (Exception e) {
-            Atum.currentSeedFuture = null;
-            Atum.LOGGER.error("Failed to get seed from the seed provider!", e);
-            Atum.stopRunning();
-            onClose();
-            Atum.seedFutureFailCounter++;
-            Atum.getSeedProvider().onFail(e);
+            client.execute(() -> {
+                Atum.LOGGER.error("Failed to get seed from the seed provider!", e);
+                onSeedFutureFail(e);
+            });
             return null;
         }
+    }
+
+    @Unique
+    private void onSeedFutureFail(Exception e) {
+        assert client != null;
+        Atum.currentSeedFuture = null;
+        Atum.stopRunning();
+        client.openScreen(null);
+        Atum.seedFutureFailCounter++;
+        Atum.getSeedProvider().onFail(e);
     }
 
     @Unique
