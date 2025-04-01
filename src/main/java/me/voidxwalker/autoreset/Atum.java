@@ -23,15 +23,14 @@ public class Atum implements ClientModInitializer {
     public static KeyBinding resetKey;
 
     private static boolean running = false;
+    private static boolean seedFailure = false;
     private static boolean shouldReset;
 
     private static final SeedProvider DEFAULT_SEED_PROVIDER = () -> CompletableFuture.completedFuture(Atum.config.seed);
     private static SeedProvider seedProvider = DEFAULT_SEED_PROVIDER;
 
-    public static CompletableFuture<String> currentSeedFuture = null;
-    public static long seedFutureFailCounter = 0;
-
     public static void createNewWorld() {
+        seedFailure = false;
         running = true;
         shouldReset = false;
 
@@ -43,6 +42,11 @@ public class Atum implements ClientModInitializer {
     }
 
     public static void stopRunning() {
+        stopRunning(false);
+    }
+
+    public static void stopRunning(boolean seedFailure) {
+        Atum.seedFailure = seedFailure;
         shouldReset = false;
         running = false;
         config.dataPackMismatch = false;
@@ -108,5 +112,9 @@ public class Atum implements ClientModInitializer {
                 GLFW.GLFW_KEY_F6,
                 "key.categories.atum"
         ));
+    }
+
+    public static boolean didSeedProviderFail() {
+        return seedFailure;
     }
 }

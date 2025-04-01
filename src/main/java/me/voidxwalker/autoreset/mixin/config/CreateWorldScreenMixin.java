@@ -84,6 +84,9 @@ public abstract class CreateWorldScreenMixin extends Screen {
     @Unique
     private AbstractButtonWidget demoModeButton;
 
+    @Unique
+    private CompletableFuture<String> seedFuture = null;
+
     @Shadow
     protected abstract void updateSaveFolderName();
 
@@ -306,35 +309,27 @@ public abstract class CreateWorldScreenMixin extends Screen {
         }
         try {
             CompletableFuture<String> seedFuture;
-            seedFuture = Atum.currentSeedFuture;
+            seedFuture = this.seedFuture;
             if (seedFuture == null) {
                 seedFuture = Atum.getSeedProvider().requestSeed();
             }
             if (seedFuture.isDone()) {
-                Atum.currentSeedFuture = null;
                 return seedFuture.get();
             }
-            Atum.currentSeedFuture = seedFuture;
+            this.seedFuture = seedFuture;
             if (client.isOnThread() && openWaitingScreen(seedFuture)) {
                 return null;
             }
-            String out = seedFuture.join();
-            Atum.currentSeedFuture = null;
-            return out;
+            return seedFuture.join();
         } catch (InterruptedException e) {
-            Atum.currentSeedFuture = null;
             throw new RuntimeException(e);
         } catch (CancellationException e) {
-            client.execute(() -> {
-                Atum.LOGGER.warn("The seed has been cancelled.");
-                onSeedFutureFail(e);
-            });
+            Atum.LOGGER.warn("The seed has been cancelled.");
+            onSeedFutureFail(e);
             return null;
         } catch (Exception e) {
-            client.execute(() -> {
-                Atum.LOGGER.error("Failed to get seed from the seed provider!", e);
-                onSeedFutureFail(e);
-            });
+            Atum.LOGGER.error("Failed to get seed from the seed provider!", e);
+            onSeedFutureFail(e);
             return null;
         }
     }
@@ -342,11 +337,11 @@ public abstract class CreateWorldScreenMixin extends Screen {
     @Unique
     private void onSeedFutureFail(Exception e) {
         assert client != null;
-        Atum.currentSeedFuture = null;
-        Atum.stopRunning();
-        client.openScreen(null);
-        Atum.seedFutureFailCounter++;
-        Atum.getSeedProvider().onFail(e);
+        Atum.stopRunning(true);
+        client.execute(() -> {
+            client.openScreen(null);
+            Atum.getSeedProvider().onFail(e);
+        });
     }
 
     @Unique
