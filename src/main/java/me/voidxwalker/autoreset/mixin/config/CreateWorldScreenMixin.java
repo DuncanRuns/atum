@@ -7,6 +7,7 @@ import me.voidxwalker.autoreset.AttemptTracker;
 import me.voidxwalker.autoreset.Atum;
 import me.voidxwalker.autoreset.AtumCreateWorldScreen;
 import me.voidxwalker.autoreset.api.seedprovider.AtumWaitingScreen;
+import me.voidxwalker.autoreset.interfaces.ICreateWorldScreen;
 import me.voidxwalker.autoreset.interfaces.IMoreOptionsDialog;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
@@ -47,7 +48,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @Mixin(CreateWorldScreen.class)
-public abstract class CreateWorldScreenMixin extends Screen {
+public abstract class CreateWorldScreenMixin extends Screen implements ICreateWorldScreen {
     @Shadow
     @Final
     private Screen parent;
@@ -434,5 +435,10 @@ public abstract class CreateWorldScreenMixin extends Screen {
     @Unique
     private boolean isAtum() {
         return (Object) this instanceof AtumCreateWorldScreen;
+    }
+
+    @Override
+    public CompletableFuture<String> atum$getSeedFuture() {
+        return seedFuture;
     }
 }
