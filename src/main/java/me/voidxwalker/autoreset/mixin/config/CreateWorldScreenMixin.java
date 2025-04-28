@@ -174,7 +174,7 @@ public abstract class CreateWorldScreenMixin extends Screen {
             cancellable = true
     )
     private void saveAtumConfigurations(CallbackInfo ci) {
-        if (!this.isAtum() || getJob() == Job.CONFIGURATION) {
+        if (!this.isAtum() || getJob() == Job.CREATION) {
             return;
         }
 
