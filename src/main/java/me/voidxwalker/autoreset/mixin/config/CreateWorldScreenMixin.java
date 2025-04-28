@@ -6,6 +6,7 @@ import me.contaria.speedrunapi.util.TextUtil;
 import me.voidxwalker.autoreset.AttemptTracker;
 import me.voidxwalker.autoreset.Atum;
 import me.voidxwalker.autoreset.AtumCreateWorldScreen;
+import me.voidxwalker.autoreset.AtumCreateWorldScreen.Job;
 import me.voidxwalker.autoreset.api.seedprovider.AtumWaitingScreen;
 import me.voidxwalker.autoreset.api.seedprovider.SeedProvider;
 import me.voidxwalker.autoreset.interfaces.IMoreOptionsDialog;
@@ -144,7 +145,7 @@ public abstract class CreateWorldScreenMixin extends Screen {
         }
         ((IMoreOptionsDialog) this.moreOptionsDialog).atum$setSeed(seed);
 
-        if (Atum.isRunning()) {
+        if (getJob() == Job.CREATION) {
             this.createWorld(seed);
             return;
         }
@@ -157,7 +158,7 @@ public abstract class CreateWorldScreenMixin extends Screen {
             at = @At("TAIL")
     )
     private void updateLevelNameField(boolean moreOptionsOpen, CallbackInfo ci) {
-        if (!Atum.isRunning() && this.isAtum()) {
+        if (this.isAtum() && getJob() == Job.CONFIGURATION) {
             this.levelNameField.setText(Atum.config.attemptTracker.getWorldName(
                     ((IMoreOptionsDialog) this.moreOptionsDialog).atum$isSetSeed() ? AttemptTracker.Type.SSG : AttemptTracker.Type.RSG
             ));
@@ -173,7 +174,7 @@ public abstract class CreateWorldScreenMixin extends Screen {
             cancellable = true
     )
     private void saveAtumConfigurations(CallbackInfo ci) {
-        if (!this.isAtum() || Atum.isRunning()) {
+        if (!this.isAtum() || getJob() == Job.CONFIGURATION) {
             return;
         }
 
@@ -192,7 +193,7 @@ public abstract class CreateWorldScreenMixin extends Screen {
     )
     private boolean doNotUpdateEmptySaveFolderName(CreateWorldScreen screen) {
         // micro-optimization, we call updateSaveFolderName ourselves when creating the level
-        return !Atum.isRunning();
+        return !isAtum() || getJob() == Job.CONFIGURATION;
     }
 
     @WrapWithCondition(
@@ -271,7 +272,7 @@ public abstract class CreateWorldScreenMixin extends Screen {
 
     @Unique
     private void initDataPacks() {
-        if (!Atum.isRunning()) {
+        if (getJob() == Job.CONFIGURATION) {
             this.dataPackTempDir = Atum.config.dataPackDirectory;
             return;
         }
@@ -295,7 +296,7 @@ public abstract class CreateWorldScreenMixin extends Screen {
 
     @Unique
     private @Nullable String getSeed() {
-        if (!Atum.isRunning()) {
+        if (getJob() == Job.CONFIGURATION) {
             return Objects.requireNonNull(Atum.config.seed);
         }
         assert client != null;
@@ -327,6 +328,8 @@ public abstract class CreateWorldScreenMixin extends Screen {
                 MinecraftClient.getInstance().openScreen(waitingScreen);
                 return null;
             }
+            // Job is already CREATION, we need to make sure we check atum is still running to prevent race conditions
+            // with mods that create worlds on other threads (seedqueue).
             if (!Atum.isRunning()) {
                 // Atum.stopRunning() may have ran right before this seedFuture was added to SEED_FUTURES, so if atum
                 // stopped running mid world creation, we should cancel this seed future to make sure this one is also
@@ -430,5 +433,10 @@ public abstract class CreateWorldScreenMixin extends Screen {
     @Unique
     private boolean isAtum() {
         return (Object) this instanceof AtumCreateWorldScreen;
+    }
+
+    @Unique
+    private Job getJob() {
+        return ((AtumCreateWorldScreen) (Object) this).getJob();
     }
 }
