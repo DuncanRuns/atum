@@ -145,7 +145,7 @@ public abstract class CreateWorldScreenMixin extends Screen {
         }
         ((IMoreOptionsDialog) this.moreOptionsDialog).atum$setSeed(seed);
 
-        if (getJob() == Job.CREATION) {
+        if (isAtumReset()) {
             this.createWorld(seed);
             return;
         }
@@ -158,7 +158,7 @@ public abstract class CreateWorldScreenMixin extends Screen {
             at = @At("TAIL")
     )
     private void updateLevelNameField(boolean moreOptionsOpen, CallbackInfo ci) {
-        if (this.isAtum() && getJob() == Job.CONFIGURATION) {
+        if (isAtumConfig()) {
             this.levelNameField.setText(Atum.config.attemptTracker.getWorldName(
                     ((IMoreOptionsDialog) this.moreOptionsDialog).atum$isSetSeed() ? AttemptTracker.Type.SSG : AttemptTracker.Type.RSG
             ));
@@ -174,7 +174,7 @@ public abstract class CreateWorldScreenMixin extends Screen {
             cancellable = true
     )
     private void saveAtumConfigurations(CallbackInfo ci) {
-        if (!this.isAtum() || getJob() == Job.CREATION) {
+        if (!isAtumConfig()) {
             return;
         }
 
@@ -193,7 +193,7 @@ public abstract class CreateWorldScreenMixin extends Screen {
     )
     private boolean doNotUpdateEmptySaveFolderName(CreateWorldScreen screen) {
         // micro-optimization, we call updateSaveFolderName ourselves when creating the level
-        return !isAtum() || getJob() == Job.CONFIGURATION;
+        return !isAtumReset();
     }
 
     @WrapWithCondition(
@@ -272,7 +272,7 @@ public abstract class CreateWorldScreenMixin extends Screen {
 
     @Unique
     private void initDataPacks() {
-        if (getJob() == Job.CONFIGURATION) {
+        if (isAtumConfig()) {
             this.dataPackTempDir = Atum.config.dataPackDirectory;
             return;
         }
@@ -296,7 +296,7 @@ public abstract class CreateWorldScreenMixin extends Screen {
 
     @Unique
     private @Nullable String getSeed() {
-        if (getJob() == Job.CONFIGURATION) {
+        if (isAtumConfig()) {
             return Objects.requireNonNull(Atum.config.seed);
         }
         assert client != null;
@@ -435,8 +435,15 @@ public abstract class CreateWorldScreenMixin extends Screen {
         return (Object) this instanceof AtumCreateWorldScreen;
     }
 
+    @SuppressWarnings("all")
     @Unique
-    private Job getJob() {
-        return ((AtumCreateWorldScreen) (Object) this).getJob();
+    private boolean isAtumConfig() {
+        return isAtum() && ((AtumCreateWorldScreen) (Object) this).getJob() == Job.CONFIGURATION;
+    }
+
+    @SuppressWarnings("all")
+    @Unique
+    private boolean isAtumReset() {
+        return isAtum() && ((AtumCreateWorldScreen) (Object) this).getJob() == Job.CREATION;
     }
 }
